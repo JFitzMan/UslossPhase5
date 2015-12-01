@@ -4,3 +4,6 @@
 /phase5-v1.0.pdf
 /libpatrickphase*
 /Makefile
+/*.o
+/usloss
+/libphase5.a

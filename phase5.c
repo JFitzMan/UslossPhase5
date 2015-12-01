@@ -8,7 +8,7 @@
 
 #include <assert.h>
 #include <phase1.h>
-#include <phase2.h>
+#include "phase2.h" 
 #include <phase3.h>
 #include <phase4.h>
 #include <phase5.h>
@@ -16,13 +16,10 @@
 #include <libuser.h>
 #include <vm.h>
 #include <string.h>
-
-extern void mbox_create(sysargs *args_ptr);
-extern void mbox_release(sysargs *args_ptr);
-extern void mbox_send(sysargs *args_ptr);
-extern void mbox_receive(sysargs *args_ptr);
-extern void mbox_condsend(sysargs *args_ptr);
-extern void mbox_condreceive(sysargs *args_ptr);
+#include <usyscall.h>
+#include <usloss.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 static Process processes[MAXPROC];
 
@@ -37,8 +34,8 @@ static void
 FaultHandler(int  type,  // USLOSS_MMU_INT
              void *arg); // Offset within VM region
 
-static void vmInit(sysargs *sysargsPtr);
-static void vmDestroy(sysargs *sysargsPtr);
+static void vmInit(systemArgs *sysargs);
+static void vmDestroy(systemArgs *sysargs);
 /*
  *----------------------------------------------------------------------
  *
@@ -62,12 +59,12 @@ start4(char *arg)
     int status;
 
     /* to get user-process access to mailbox functions */
-    systemCallVec[SYS_MBOXCREATE]      = mboxCreate;
-    systemCallVec[SYS_MBOXRELEASE]     = mboxRelease;
-    systemCallVec[SYS_MBOXSEND]        = mboxSend;
-    systemCallVec[SYS_MBOXRECEIVE]     = mboxReceive;
-    systemCallVec[SYS_MBOXCONDSEND]    = mboxCondsend;
-    systemCallVec[SYS_MBOXCONDRECEIVE] = mboxCondreceive;
+    systemCallVec[SYS_MBOXCREATE]      = (void*)MboxCreate;
+    systemCallVec[SYS_MBOXRELEASE]     = (void*)MboxRelease;
+    systemCallVec[SYS_MBOXSEND]        = (void*)MboxSend;
+    systemCallVec[SYS_MBOXRECEIVE]     = (void*)MboxReceive;
+    systemCallVec[SYS_MBOXCONDSEND]    = (void*)MboxCondSend;
+    systemCallVec[SYS_MBOXCONDRECEIVE] = (void*)MboxCondReceive;
 
     /* user-process access to VM functions */
     systemCallVec[SYS_VMINIT]    = vmInit;
@@ -75,12 +72,12 @@ start4(char *arg)
 
     result = Spawn("Start5", start5, NULL, 8*USLOSS_MIN_STACK, 2, &pid);
     if (result != 0) {
-        console("start4(): Error spawning start5\n");
+        USLOSS_Console("start4(): Error spawning start5\n");
         Terminate(1);
     }
     result = Wait(&pid, &status);
     if (result != 0) {
-        console("start4(): Error waiting for start5\n");
+        USLOSS_Console("start4(): Error waiting for start5\n");
         Terminate(1);
     }
     Terminate(0);
@@ -104,7 +101,7 @@ start4(char *arg)
  *----------------------------------------------------------------------
  */
 static void
-vmInit(sysargs *sysargsPtr)
+vmInit(systemArgs *sysargs)
 {
     CheckMode();
 } /* vmInit */
@@ -127,7 +124,7 @@ vmInit(sysargs *sysargsPtr)
  */
 
 static void
-vmDestroy(sysargs *sysargsPtr)
+vmDestroy(systemArgs *sysargs)
 {
    CheckMode();
 } /* vmDestroy */
@@ -252,10 +249,10 @@ vmDestroyReal(void)
    /* 
     * Print vm statistics.
     */
-   console("vmStats:\n");
-   console("pages: %d\n", vmStats.pages);
-   console("frames: %d\n", vmStats.frames);
-   console("blocks: %d\n", vmStats.blocks);
+   USLOSS_Console("vmStats:\n");
+   USLOSS_Console("pages: %d\n", vmStats.pages);
+   USLOSS_Console("frames: %d\n", vmStats.frames);
+   //USLOSS_Console("blocks: %d\n", vmStats.blocks);
    /* and so on... */
 
 } /* vmDestroyReal */

@@ -15,6 +15,12 @@
 
 
 /*
+ * Prototypes
+ */
+extern  int  start5(char *);
+
+
+/*
  * Pager priority.
  */
 #define PAGER_PRIORITY	2
