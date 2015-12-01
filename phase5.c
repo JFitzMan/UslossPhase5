@@ -29,6 +29,9 @@ FaultMsg faults[MAXPROC]; /* Note that a process can have only
                            * and index them by pid. */
 VmStats  vmStats;
 
+void *vmRegion;
+int debug5 = 1;
+
 
 static void
 FaultHandler(int  type,  // USLOSS_MMU_INT
@@ -57,6 +60,10 @@ start4(char *arg)
     int pid;
     int result;
     int status;
+
+    if(debug5){
+      USLOSS_Console("start4(): Started.\n");
+    }
 
     /* to get user-process access to mailbox functions */
     systemCallVec[SYS_MBOXCREATE]      = (void*)MboxCreate;
@@ -106,10 +113,6 @@ vmInit(systemArgs *sysargs)
     CheckMode();
 } /* vmInit */
 
-int VmInit(int mappings, int pages, int frames, int pagers,
-                  void **region){
-}/* vmInit */
-
 
 /*
  *----------------------------------------------------------------------
@@ -132,11 +135,6 @@ vmDestroy(systemArgs *sysargs)
 {
    CheckMode();
 } /* mDestroy */
-
-int
-VmDestroy(void){
-
-}/* vmDestroy */
 
 
 /*
