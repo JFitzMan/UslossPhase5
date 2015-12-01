@@ -21,7 +21,7 @@ extern  int  start5(char *);
 
 
 /*
- * Pager priority.
+ * Pager priority
  */
 #define PAGER_PRIORITY	2
 

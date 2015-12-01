@@ -106,6 +106,10 @@ vmInit(systemArgs *sysargs)
     CheckMode();
 } /* vmInit */
 
+int VmInit(int mappings, int pages, int frames, int pagers,
+                  void **region){
+}/* vmInit */
+
 
 /*
  *----------------------------------------------------------------------
@@ -127,7 +131,12 @@ static void
 vmDestroy(systemArgs *sysargs)
 {
    CheckMode();
-} /* vmDestroy */
+} /* mDestroy */
+
+int
+VmDestroy(void){
+
+}/* vmDestroy */
 
 
 /*
