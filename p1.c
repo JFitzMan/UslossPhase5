@@ -1,23 +1,52 @@
 
 #include "usloss.h"
+#include <vm.h>
+#include <phase1.h>
 #include "phase2.h" 
+#include <phase3.h>
+#include <phase4.h>
+#include <phase5.h>
 #include <stdio.h>
 #include <string.h>
 
-#define DEBUG 0
+#define DEBUG 1
+
 extern int debugflag;
+extern Process processes[50];
+extern int mmuInitialized;
 
 void
 p1_fork(int pid)
 {
-    if (DEBUG && debugflag)
-        USLOSS_Console("p1_fork() called: pid = %d\n", pid);
+    //this prevents the earlier phases from calling this before init is called
+    if(mmuInitialized){
+        if (DEBUG)
+            USLOSS_Console("p1_fork() called: pid = %d, MMU online\n", pid);
+
+        //initialize process table entry
+        processes[pid%MAXPROC].pid = pid;
+        processes[pid%MAXPROC].numPages = vmStats.pages;
+        processes[pid%MAXPROC].pageTable = malloc(USLOSS_MmuPageSize()*vmStats.pages);
+
+        //initialize page table
+        int i;
+        for (i = 0; i < vmStats.pages; i++){
+            processes[pid%MAXPROC].pageTable[i].state = UNUSED;
+            processes[pid%MAXPROC].pageTable[i].frame = -1;
+            processes[pid%MAXPROC].pageTable[i].diskBlock = -1;
+        }
+    }
+    else{
+        if (DEBUG)
+            USLOSS_Console("p1_fork() called: pid = %d\n", pid);
+    }
+
 } /* p1_fork */
 
 void
 p1_switch(int old, int new)
 {
-    if (DEBUG && debugflag)
+    if (DEBUG)
         USLOSS_Console("p1_switch() called: old = %d, new = %d\n", old, new);
 
     //MmuMap/MmuUnmap will be used to remove the pages from the frames,
@@ -27,7 +56,7 @@ p1_switch(int old, int new)
 void
 p1_quit(int pid)
 {
-    if (DEBUG && debugflag)
+    if (DEBUG)
         USLOSS_Console("p1_quit() called: pid = %d\n", pid);
 } /* p1_quit */
 /*

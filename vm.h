@@ -44,6 +44,8 @@ typedef struct Process {
     int  pid;
 } Process;
 
+static Process processes[50];
+int mmuInitialized;
 /*
  * Information about page faults. This message is sent by the faulting
  * process to the pager to request that the fault be handled.

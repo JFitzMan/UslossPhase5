@@ -25,11 +25,11 @@ extern int  diskReadReal (int unit, int track, int first_sector,
 extern int  diskWriteReal(int unit, int track, int first_sector,
                           int numSectors, void *buffer);
 
-extern int  Mbox_Create(int numslots, int slotsize, int *mboxID);
-extern int  Mbox_Release(int mboxID);
-extern int  Mbox_Send(int mboxID, void *msgPtr, int msgSize);
-extern int  Mbox_Receive(int mboxID, void *msgPtr, int msgSize);
-extern int  Mbox_CondSend(int mboxID, void *msgPtr, int msgSize);
-extern int  Mbox_CondReceive(int mboxID, void *msgPtr, int msgSize);
+extern int  MboxCreate(int numslots, int slotsize);
+extern int  MboxRelease(int mboxID);
+extern int  MboxSend(int mboxID, void *msgPtr, int msgSize);
+extern int  MboxReceive(int mboxID, void *msgPtr, int msgSize);
+extern int  MboxCondSend(int mboxID, void *msgPtr, int msgSize);
+extern int  MboxCondReceive(int mboxID, void *msgPtr, int msgSize);
 
 #endif  /* PROVIDED_PROTOTYPES_H */

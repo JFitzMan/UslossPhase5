@@ -20,8 +20,8 @@
 #include <usloss.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <provided_prototypes.h>
 
-static Process processes[MAXPROC];
 
 FaultMsg faults[MAXPROC]; /* Note that a process can have only
                            * one fault at a time, so we can
@@ -31,10 +31,13 @@ VmStats  vmStats;
 
 FTE *frameTable;
 
+extern Process processes[50];
+extern int mmuInitialized;
+int pagerMbox;
+int pagerPID[MAXPAGERS];
+
 void *vmRegion;
 int debug5 = 1;
-int mmuInitialized = 0;
-
 
 static void
 FaultHandler(int  type,  // USLOSS_MMU_INT
@@ -42,6 +45,7 @@ FaultHandler(int  type,  // USLOSS_MMU_INT
 
 static void vmInit(systemArgs *sysargs);
 static void vmDestroy(systemArgs *sysargs);
+static int Pager(char *buf);
 /*
  *----------------------------------------------------------------------
  *
@@ -63,6 +67,7 @@ start4(char *arg)
     int pid;
     int result;
     int status;
+    mmuInitialized = 0;
 
     if(debug5){
       USLOSS_Console("start4(): Started.\n");
@@ -139,8 +144,9 @@ vmInit(systemArgs *sysargs)
       sysargs->arg4 = (void *) (long) 0;
     }
 
+    vmRegion = vmInitReal(mappings, pages, frames, pagers);
     //set arg1 to the address of vmRegion
-    sysargs->arg1 = (void*) vmInitReal(mappings, pages, frames, pagers);
+    sysargs->arg1 = (void*) vmRegion;
     return;
 } /* vmInit */
 
@@ -208,13 +214,19 @@ vmInitReal(int mappings, int pages, int frames, int pagers)
     * Initialize frame table
     */
    frameTable = malloc(sizeof(FTE)*frames);
+   int i;
+   for(i = 0; i < frames; i++){
+      frameTable[i].state = UNUSED;
+      frameTable[i].page = NULL;
+      frameTable[i].pid = -1;
+   }
   
    /* 
     * Create the fault mailbox.
     */
-    int i;
+   
    for (i = 0; i < MAXPROC; i++){
-      faults[i].pid = i+1;
+      faults[i].pid = -1;
       faults[i].addr = NULL;
       faults[i].replyMbox = -1;
    }
@@ -222,6 +234,18 @@ vmInitReal(int mappings, int pages, int frames, int pagers)
    /*
     * Fork the pagers.
     */
+
+   //create mailbox for pagers to block on
+   pagerMbox = MboxCreate(pagers, sizeof(FaultMsg*));
+   char buf[10];
+   for (i = 0; i < pagers; i++){
+      sprintf(buf, "%d", i);
+      pagerPID[i] = fork1("Pager", Pager, buf, USLOSS_MIN_STACK, 2);
+   }
+   for (i = pagers; i < MAXPAGERS; i++){
+      pagerPID[i] = -1;
+   }
+
 
    /*
     * Zero out, then initialize, the vmStats structure
@@ -351,6 +375,24 @@ FaultHandler(int  type /* USLOSS_MMU_INT */,
     * Fill in faults[pid % MAXPROC], send it to the pagers, and wait for the
     * reply.
     */
+
+   int pid = 0;
+   getPID_real(&pid);
+
+   faults[pid%MAXPROC].pid = pid;
+   faults[pid%MAXPROC].addr = vmRegion + offset;
+   faults[pid%MAXPROC].replyMbox = MboxCreate(0, 0);
+   if(debug5){
+      USLOSS_Console("FaultHandler(): sending fault to pagerMbox\n");
+   }
+   int msg = pid;
+   MboxSend(pagerMbox, &msg, sizeof(msg));
+   //block on private mbox
+   MboxReceive(faults[pid%MAXPROC].replyMbox, NULL, 0);
+   if(debug5){
+      USLOSS_Console("FaultHandler(): Pager sent reply, page is ready\n");
+   }
+
 } /* FaultHandler */
 
 /*
@@ -371,13 +413,21 @@ FaultHandler(int  type /* USLOSS_MMU_INT */,
 static int
 Pager(char *buf)
 {
-    while(1) {
-        /* Wait for fault to occur (receive from mailbox) */
-        /* Look for free frame */
-        /* If there isn't one then use clock algorithm to
-         * replace a page (perhaps write to disk) */
-        /* Load page into frame from disk, if necessary */
-        /* Unblock waiting (faulting) process */
+  if(debug5){
+    USLOSS_Console("Pager%c(): started\n", buf[0]);
+  }
+  //enable interrupts
+  USLOSS_PsrSet(USLOSS_PsrGet() | USLOSS_PSR_CURRENT_INT);
+  while(1) {
+      /* Wait for fault to occur (receive from mailbox) */
+      int pidToHelp = -1;
+      MboxReceive(pagerMbox, &pidToHelp, sizeof(pidToHelp));
+      /* Look for free frame */
+      /* If there isn't one then use clock algorithm to
+       * replace a page (perhaps write to disk) */
+      /* Load page into frame from disk, if necessary */
+      /* Unblock waiting (faulting) process */
+      MboxSend(faults[pidToHelp%MAXPROC].replyMbox, NULL, 0);
     }
     return 0;
 } /* Pager */
