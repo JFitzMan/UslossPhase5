@@ -196,6 +196,7 @@ vmInitReal(int mappings, int pages, int frames, int pagers)
 {
    int status;
    int dummy, dummy2;
+   mmuInitialized = 1;
 
    CheckMode();
 
@@ -231,6 +232,7 @@ vmInitReal(int mappings, int pages, int frames, int pagers)
       faults[i].replyMbox = -1;
    }
 
+
    /*
     * Fork the pagers.
     */
@@ -264,7 +266,7 @@ vmInitReal(int mappings, int pages, int frames, int pagers)
    vmStats.pageOuts = 0;
    vmStats.replaced = 0;
  
-   mmuInitialized = 1;
+   
    if(debug5){
       USLOSS_Console("vmInitReal(): diskBlocks = %d\n", vmStats.diskBlocks);
    }
@@ -416,6 +418,8 @@ Pager(char *buf)
   if(debug5){
     USLOSS_Console("Pager%c(): started\n", buf[0]);
   }
+  int pid = -1;
+  getPID_real(&pid);
   //enable interrupts
   USLOSS_PsrSet(USLOSS_PsrGet() | USLOSS_PSR_CURRENT_INT);
   while(1) {
@@ -423,8 +427,15 @@ Pager(char *buf)
       int pidToHelp = -1;
       MboxReceive(pagerMbox, &pidToHelp, sizeof(pidToHelp));
       /* Look for free frame */
+      int i;
+      for (i = 0; i < vmStats.frames; i++){
+          if(frameTable[i].state == UNUSED){
+            break;
+          }
+      }
       /* If there isn't one then use clock algorithm to
        * replace a page (perhaps write to disk) */
+      USLOSS_MmuMap(TAG, processes[pid].pageTable, )
       /* Load page into frame from disk, if necessary */
       /* Unblock waiting (faulting) process */
       MboxSend(faults[pidToHelp%MAXPROC].replyMbox, NULL, 0);
