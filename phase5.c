@@ -435,7 +435,7 @@ Pager(char *buf)
       }
       /* If there isn't one then use clock algorithm to
        * replace a page (perhaps write to disk) */
-      USLOSS_MmuMap(TAG, processes[pid].pageTable, )
+      //USLOSS_MmuMap(TAG, processes[pid].pageTable, )
       /* Load page into frame from disk, if necessary */
       /* Unblock waiting (faulting) process */
       MboxSend(faults[pidToHelp%MAXPROC].replyMbox, NULL, 0);
