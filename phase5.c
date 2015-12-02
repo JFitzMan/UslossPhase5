@@ -135,6 +135,9 @@ vmInit(systemArgs *sysargs)
       sysargs->arg4 = (void *) (long) -1;
       return;
     }
+    else{
+      sysargs->arg4 = (void *) (long) 0;
+    }
 
     //set arg1 to the address of vmRegion
     sysargs->arg1 = (void*) vmInitReal(mappings, pages, frames, pagers);
@@ -186,7 +189,7 @@ void *
 vmInitReal(int mappings, int pages, int frames, int pagers)
 {
    int status;
-   int dummy;
+   int dummy, dummy2;
 
    CheckMode();
 
@@ -209,6 +212,12 @@ vmInitReal(int mappings, int pages, int frames, int pagers)
    /* 
     * Create the fault mailbox.
     */
+    int i;
+   for (i = 0; i < MAXPROC; i++){
+      faults[i].pid = i+1;
+      faults[i].addr = NULL;
+      faults[i].replyMbox = -1;
+   }
 
    /*
     * Fork the pagers.
@@ -220,10 +229,22 @@ vmInitReal(int mappings, int pages, int frames, int pagers)
    memset((char *) &vmStats, 0, sizeof(VmStats));
    vmStats.pages = pages;
    vmStats.frames = frames;
-   /*
-    * Initialize other vmStats fields.
-    */
+   diskSizeReal(1, &dummy2, &dummy2, &dummy);
+   vmStats.diskBlocks = dummy;
+   vmStats.freeFrames = frames;
+   vmStats.freeDiskBlocks = dummy;
+   vmStats.switches = 0;
+   vmStats.faults = 0;
+   vmStats.new = 0;
+   vmStats.pageIns = 0;
+   vmStats.pageOuts = 0;
+   vmStats.replaced = 0;
+ 
    mmuInitialized = 1;
+   if(debug5){
+      USLOSS_Console("vmInitReal(): diskBlocks = %d\n", vmStats.diskBlocks);
+   }
+
    return USLOSS_MmuRegion(&dummy);
 } /* vmInitReal */
 
