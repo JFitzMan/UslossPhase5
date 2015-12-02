@@ -19,6 +19,9 @@ p1_switch(int old, int new)
 {
     if (DEBUG && debugflag)
         USLOSS_Console("p1_switch() called: old = %d, new = %d\n", old, new);
+
+    //MmuMap/MmuUnmap will be used to remove the pages from the frames,
+    //and add the new pages into the frame
 } /* p1_switch */
 
 void

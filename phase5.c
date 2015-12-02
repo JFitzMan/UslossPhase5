@@ -77,6 +77,14 @@ start4(char *arg)
     systemCallVec[SYS_VMINIT]    = vmInit;
     systemCallVec[SYS_VMDESTROY] = vmDestroy;
 
+    //initialize Phase 5 Process Table
+    int i;
+    for (i = 0; i < MAXPROC; i++){
+      processes[i].numPages = -1;
+      processes[i].pid = -1;
+      processes[i].pageTable = NULL;
+    }
+
     result = Spawn("Start5", start5, NULL, 8*USLOSS_MIN_STACK, 2, &pid);
     if (result != 0) {
         USLOSS_Console("start4(): Error spawning start5\n");
@@ -111,6 +119,23 @@ static void
 vmInit(systemArgs *sysargs)
 {
     CheckMode();
+
+    //extract arguments
+    int mappings = (int)sysargs->arg1;
+    int pages    = (int)sysargs->arg2;
+    int frames   = (int)sysargs->arg3;
+    int pagers   = (int)sysargs->arg4;
+
+    //check for illegal values
+    if (mappings < 0 || pages < 0 || frames < 0 || pagers < 0){
+      USLOSS_Console("vmInit(): Illegal values given as input!");
+      sysargs->arg4 = (void *) (long) -1;
+      return;
+    }
+
+    //set arg1 to the address of vmRegion
+    sysargs->arg1 = (void*) vmInitReal(mappings, pages, frames, pagers);
+    return;
 } /* vmInit */
 
 
@@ -161,6 +186,11 @@ vmInitReal(int mappings, int pages, int frames, int pagers)
    int dummy;
 
    CheckMode();
+
+   if(debug5){
+      USLOSS_Console("vmInitReal(): called.\n");
+    }
+
    status = USLOSS_MmuInit(mappings, pages, frames);
    if (status != USLOSS_MMU_OK) {
       USLOSS_Console("vmInitReal: couldn't init MMU, status %d\n", status);
@@ -283,7 +313,7 @@ vmDestroyReal(void)
  */
 static void
 FaultHandler(int  type /* USLOSS_MMU_INT */,
-             void *arg  /* Offset within VM region */)
+             void *arg  /* Integer, Offset within VM region */)
 {
    int cause;
 

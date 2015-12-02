@@ -9,7 +9,7 @@
 #define TAG 0
 
 /*
- * Different states for a page.
+ * Different states for a page/frame.
  */
 #define UNUSED 500
 #define INCORE 501
@@ -27,12 +27,21 @@ typedef struct PTE {
 } PTE;
 
 /*
+ * Frame table entry.
+ */
+typedef struct FTE {
+    int state;
+    PTE *page;       // address of the page stored in the frame (if any) -1 if none
+    int pid;        // pid of the process who owns the page
+} FTE;
+
+/*
  * Per-process information.
  */
 typedef struct Process {
     int  numPages;   // Size of the page table.
     PTE  *pageTable; // The page table for the process.
-    // Add more stuff here */
+    int  pid;
 } Process;
 
 /*
