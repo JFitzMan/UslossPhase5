@@ -29,8 +29,11 @@ FaultMsg faults[MAXPROC]; /* Note that a process can have only
                            * and index them by pid. */
 VmStats  vmStats;
 
+FTE *frameTable;
+
 void *vmRegion;
 int debug5 = 1;
+int mmuInitialized = 0;
 
 
 static void
@@ -127,7 +130,7 @@ vmInit(systemArgs *sysargs)
     int pagers   = (int)sysargs->arg4;
 
     //check for illegal values
-    if (mappings < 0 || pages < 0 || frames < 0 || pagers < 0){
+    if (mappings != pages || pages <= 0 || frames <= 0 || pagers <= 0){
       USLOSS_Console("vmInit(): Illegal values given as input!");
       sysargs->arg4 = (void *) (long) -1;
       return;
@@ -198,11 +201,11 @@ vmInitReal(int mappings, int pages, int frames, int pagers)
    }
    USLOSS_IntVec[USLOSS_MMU_INT] = FaultHandler;
 
-
    /*
-    * Initialize page tables.
+    * Initialize frame table
     */
-
+   frameTable = malloc(sizeof(FTE)*frames);
+  
    /* 
     * Create the fault mailbox.
     */
@@ -220,7 +223,7 @@ vmInitReal(int mappings, int pages, int frames, int pagers)
    /*
     * Initialize other vmStats fields.
     */
-
+   mmuInitialized = 1;
    return USLOSS_MmuRegion(&dummy);
 } /* vmInitReal */
 
