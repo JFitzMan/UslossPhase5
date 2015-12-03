@@ -31,7 +31,7 @@ VmStats  vmStats;
 
 FTE *frameTable;
 
-extern Process processes[50];
+//extern Process processes[50];
 extern int mmuInitialized;
 int pagerMbox;
 int pagerPID[MAXPAGERS];
@@ -266,9 +266,9 @@ vmInitReal(int mappings, int pages, int frames, int pagers)
    vmStats.pageOuts = 0;
    vmStats.replaced = 0;
  
-   
+   USLOSS_MmuRegion(&dummy);
    if(debug5){
-      USLOSS_Console("vmInitReal(): diskBlocks = %d\n", vmStats.diskBlocks);
+      USLOSS_Console("vmInitReal(): diskBlocks = %d. Num pages: %d\n", vmStats.diskBlocks, dummy);
    }
 
    return USLOSS_MmuRegion(&dummy);
@@ -384,8 +384,9 @@ FaultHandler(int  type /* USLOSS_MMU_INT */,
    faults[pid%MAXPROC].pid = pid;
    faults[pid%MAXPROC].addr = vmRegion + offset;
    faults[pid%MAXPROC].replyMbox = MboxCreate(0, 0);
+   faults[pid%MAXPROC].offset = offset;
    if(debug5){
-      USLOSS_Console("FaultHandler(): sending fault to pagerMbox\n");
+      USLOSS_Console("FaultHandler(): sending fault to pagerMbox, offset = %d\n", offset);
    }
    int msg = pid;
    MboxSend(pagerMbox, &msg, sizeof(msg));
@@ -415,18 +416,20 @@ FaultHandler(int  type /* USLOSS_MMU_INT */,
 static int
 Pager(char *buf)
 {
+  char* num = buf;
   if(debug5){
     USLOSS_Console("Pager%c(): started\n", buf[0]);
   }
   int pid = -1;
+  int offset;
   getPID_real(&pid);
   //enable interrupts
   USLOSS_PsrSet(USLOSS_PsrGet() | USLOSS_PSR_CURRENT_INT);
   while(1) {
       /* Wait for fault to occur (receive from mailbox) */
       int pidToHelp = -1;
-      MboxReceive(pagerMbox, &pidToHelp, sizeof(pidToHelp));
-      /* Look for free frame */
+      MboxReceive(pagerMbox, &pidToHelp, sizeof(int));
+      //Look for free frame 
       int i;
       for (i = 0; i < vmStats.frames; i++){
           if(frameTable[i].state == UNUSED){
@@ -434,10 +437,29 @@ Pager(char *buf)
           }
       }
       /* If there isn't one then use clock algorithm to
-       * replace a page (perhaps write to disk) */
-      //USLOSS_MmuMap(TAG, processes[pid].pageTable, )
+       * replace a page (perhaps write to disk) 
+         For now, lets just assume there always is one*/
+      offset = faults[pidToHelp].offset;
+      //if the page hasn't been accessed before, just set it up
+      if (processes[pidToHelp].pageTable[offset].state == UNUSED){
+        USLOSS_MmuMap(TAG, faults[pidToHelp].offset, i, USLOSS_MMU_PROT_RW);
+        if(debug5)
+          USLOSS_Console("Pager(): mapped\n");
+        vmStats.new++;
+        processes[pidToHelp].pageTable[offset].state = INFRAME;
+        processes[pidToHelp].pageTable[offset].frame = i;
+
+      }
+
+      //update the frame table
+      frameTable[i].state = USED;
+      frameTable[i].page = &processes[pidToHelp].pageTable[offset];
+      frameTable[i].pid = pidToHelp;
+
+      
       /* Load page into frame from disk, if necessary */
       /* Unblock waiting (faulting) process */
+
       MboxSend(faults[pidToHelp%MAXPROC].replyMbox, NULL, 0);
     }
     return 0;

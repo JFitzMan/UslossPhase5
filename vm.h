@@ -11,8 +11,9 @@
 /*
  * Different states for a page/frame.
  */
-#define UNUSED 500
-#define INCORE 501
+#define UNUSED  500
+#define INFRAME 501
+#define USED    502
 /* You'll probably want more states */
 
 
@@ -44,7 +45,7 @@ typedef struct Process {
     int  pid;
 } Process;
 
-static Process processes[50];
+Process processes[50];
 int mmuInitialized;
 /*
  * Information about page faults. This message is sent by the faulting
@@ -54,6 +55,7 @@ typedef struct FaultMsg {
     int  pid;        // Process with the problem.
     void *addr;      // Address that caused the fault.
     int  replyMbox;  // Mailbox to send reply.
+    int  offset;
     // Add more stuff here.
 } FaultMsg;
 

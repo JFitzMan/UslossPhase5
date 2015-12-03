@@ -1,6 +1,6 @@
 
 #include "usloss.h"
-#include <vm.h>
+#include "vm.h"
 #include <phase1.h>
 #include "phase2.h" 
 #include <phase3.h>
@@ -12,7 +12,7 @@
 #define DEBUG 1
 
 extern int debugflag;
-extern Process processes[50];
+//extern Process processes[50];
 extern int mmuInitialized;
 
 void
@@ -24,10 +24,15 @@ p1_fork(int pid)
             USLOSS_Console("p1_fork() called: pid = %d, MMU online\n", pid);
 
         //initialize process table entry
-        processes[pid%MAXPROC].pid = pid;
+        processes[pid].pid = pid;
         processes[pid%MAXPROC].numPages = vmStats.pages;
-        processes[pid%MAXPROC].pageTable = malloc(USLOSS_MmuPageSize()*vmStats.pages);
+        processes[pid%MAXPROC].pageTable = malloc(sizeof(PTE)*(vmStats.pages));
 
+        if (processes[pid%MAXPROC].pageTable == NULL){
+            USLOSS_Console("p1_fork() malloc failed\n");
+        }
+
+        
         //initialize page table
         int i;
         for (i = 0; i < vmStats.pages; i++){
@@ -46,8 +51,8 @@ p1_fork(int pid)
 void
 p1_switch(int old, int new)
 {
-    if (DEBUG)
-        USLOSS_Console("p1_switch() called: old = %d, new = %d\n", old, new);
+    //if (DEBUG)
+        //USLOSS_Console("p1_switch() called: old = %d, new = %d\n", old, new);
 
     //MmuMap/MmuUnmap will be used to remove the pages from the frames,
     //and add the new pages into the frame
