@@ -265,8 +265,11 @@ vmInitReal(int mappings, int pages, int frames, int pagers)
    vmStats.pageIns = 0;
    vmStats.pageOuts = 0;
    vmStats.replaced = 0;
- 
-   USLOSS_MmuRegion(&dummy);
+
+   vmRegion = USLOSS_MmuRegion(&dummy);
+
+   //vmRegion = malloc( USLOSS_MmuPageSize() * pages );
+
    if(debug5){
       USLOSS_Console("vmInitReal(): diskBlocks = %d. Num pages: %d\n", vmStats.diskBlocks, dummy);
    }
@@ -421,6 +424,7 @@ Pager(char *buf)
     USLOSS_Console("Pager%c(): started\n", buf[0]);
   }
   int pid = -1;
+  int error = 0;
   int offset;
   getPID_real(&pid);
   //enable interrupts
@@ -442,12 +446,19 @@ Pager(char *buf)
       offset = faults[pidToHelp].offset;
       //if the page hasn't been accessed before, just set it up
       if (processes[pidToHelp].pageTable[offset].state == UNUSED){
-        USLOSS_MmuMap(TAG, faults[pidToHelp].offset, i, USLOSS_MMU_PROT_RW);
+        error = USLOSS_MmuMap(TAG, offset, i, USLOSS_MMU_PROT_RW);
+        if (error != USLOSS_MMU_OK){
+          USLOSS_Console("Pager(): couldn't map MMU, status %d\n", error);
+          abort();
+        }
         if(debug5)
           USLOSS_Console("Pager(): mapped\n");
         vmStats.new++;
         processes[pidToHelp].pageTable[offset].state = INFRAME;
         processes[pidToHelp].pageTable[offset].frame = i;
+
+        memset(vmRegion+offset, 0, USLOSS_MmuPageSize());
+
 
       }
 
