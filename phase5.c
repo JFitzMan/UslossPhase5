@@ -389,8 +389,9 @@ FaultHandler(int  type /* USLOSS_MMU_INT */,
    faults[pid%MAXPROC].replyMbox = MboxCreate(0, 0);
    faults[pid%MAXPROC].offset = offset;
    if(debug5){
-      USLOSS_Console("FaultHandler(): sending fault to pagerMbox, offset = %d\n", offset);
+      USLOSS_Console("FaultHandler(): sending fault to pagerMbox, offset = %d addr = %p\n", offset, vmRegion + offset);
    }
+
    int msg = pid;
    MboxSend(pagerMbox, &msg, sizeof(msg));
    //block on private mbox
@@ -452,7 +453,7 @@ Pager(char *buf)
           abort();
         }
         if(debug5)
-          USLOSS_Console("Pager(): mapped\n");
+          USLOSS_Console("Pager(): mapped to frame %d\n", i);
         vmStats.new++;
         processes[pidToHelp].pageTable[offset].state = INFRAME;
         processes[pidToHelp].pageTable[offset].frame = i;
