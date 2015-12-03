@@ -251,7 +251,8 @@ vmInitReal(int mappings, int pages, int frames, int pagers)
    //vmRegion = malloc( USLOSS_MmuPageSize() * pages );
 
    if(debug5){
-      USLOSS_Console("vmInitReal(): diskBlocks = %d. Num pages: %d\n", vmStats.diskBlocks, dummy);
+      USLOSS_Console("vmInitReal(): diskBlocks = %d. Num pages: %d PageSize = %d frames = %d\n", vmStats.diskBlocks, dummy, USLOSS_MmuPageSize(), vmStats.frames);
+
    }
 
    return USLOSS_MmuRegion(&dummy);
@@ -306,7 +307,7 @@ vmDestroyReal(void)
 {
 	int status;
 	CheckMode();
-  
+
 	/*
 	* Kill the pagers here.
     */
@@ -321,8 +322,8 @@ vmDestroyReal(void)
       USLOSS_Console("vmDestroyReal(): pagers quit.\n");
    }
 
-	
-	//free(frameTable);
+	//free frame table
+	free(frameTable);
 	
    /* 
     * Print vm statistics.
@@ -331,6 +332,11 @@ vmDestroyReal(void)
    /* and so on... */
 
   USLOSS_MmuDone();
+  if(debug5){
+      USLOSS_Console("vmDestroyReal(): MMU destroyed.\n");
+   }
+
+   mmuInitialized = 0;
 
 } /* vmDestroyReal */
 
@@ -454,45 +460,62 @@ Pager(char *buf)
   USLOSS_PsrSet(USLOSS_PsrGet() | USLOSS_PSR_CURRENT_INT);
 
   while(1) {
+
       /* Wait for fault to occur (receive from mailbox) */
       int pidToHelp = -1;
       MboxReceive(pagerMbox, &pidToHelp, sizeof(int));
 
+      //check to see if the mail is a zap from start4
       if (pidToHelp == ZAPPED){
         if(debug5)
           USLOSS_Console("Pager%c(): Zapped! Quitting\n", buf[0]);
         quit(1);
         return 0;
       }
-      //Look for free frame 
+
+      //Look for free frame in frame table
       int i;
       for (i = 0; i < vmStats.frames; i++){
           if(frameTable[i].state == UNUSED){
             break;
           }
       }
-      /* If there isn't one then use clock algorithm to
-       * replace a page (perhaps write to disk) 
-         For now, lets just assume there always is one*/
-      offset = faults[pidToHelp].offset;
-      //if the page hasn't been accessed before, just set it up
-      if (processes[pidToHelp].pageTable[offset].state == UNUSED){
-        error = USLOSS_MmuMap(TAG, offset, i, USLOSS_MMU_PROT_RW);
-        if (error != USLOSS_MMU_OK){
-          USLOSS_Console("Pager(): couldn't map MMU, status %d\n", error);
-          abort();
-        }
-        if(debug5)
-          USLOSS_Console("Pager(): mapped to frame %d\n", i);
-        vmStats.new++;
-        processes[pidToHelp].pageTable[offset].state = INFRAME;
-        processes[pidToHelp].pageTable[offset].frame = i;
 
-        memset(vmRegion+offset, 0, USLOSS_MmuPageSize());
-
-
+      //look for free page in procs page table
+      int j;
+      for (j = 0; i<vmStats.pages; j++){
+        if(processes[pidToHelp].pageTable[j].state == UNUSED)
+          break;
       }
 
+
+      if(debug5)
+          USLOSS_Console("Pager%c(): Frame %d is free\n", buf[0], i);
+
+      /* If there isn't one then use clock algorithm to
+       * replace a page (perhaps write to disk) 
+       * For now, lets just assume there always is one*/
+
+      offset = faults[pidToHelp].offset;
+
+      //map the page to the open frame i
+      error = USLOSS_MmuMap(TAG, j, i, USLOSS_MMU_PROT_RW);
+      if (error != USLOSS_MMU_OK){
+         USLOSS_Console("Pager(): couldn't map MMU, status %d\n", error);
+        abort();
+      }
+      if(debug5)
+        USLOSS_Console("Pager(): mapped to frame %d\n", i);
+
+      //update the process page table
+      vmStats.new++;
+      processes[pidToHelp].pageTable[j].state = INFRAME;
+      processes[pidToHelp].pageTable[j].frame = i;
+
+      //clear the new page
+      memset(vmRegion+offset, 0, USLOSS_MmuPageSize());
+      
+    
       //update the frame table
       frameTable[i].state = USED;
       frameTable[i].page = &processes[pidToHelp].pageTable[offset];

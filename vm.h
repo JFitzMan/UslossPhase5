@@ -14,7 +14,7 @@
 #define UNUSED  500
 #define INFRAME 501
 #define USED    502
-#define ZAPPED  504
+#define ZAPPED  -500
 /* You'll probably want more states */
 
 
