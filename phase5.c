@@ -154,29 +154,6 @@ vmInit(systemArgs *sysargs)
 /*
  *----------------------------------------------------------------------
  *
- * vmDestroy --
- *
- * Stub for the VmDestroy system call.
- *
- * Results:
- *      None.
- *
- * Side effects:
- *      VM system is cleaned up.
- *
- *----------------------------------------------------------------------
- */
-
-static void
-vmDestroy(systemArgs *sysargs)
-{
-   CheckMode();
-} /* mDestroy */
-
-
-/*
- *----------------------------------------------------------------------
- *
  * vmInitReal --
  *
  * Called by vmInit.
@@ -277,6 +254,94 @@ vmInitReal(int mappings, int pages, int frames, int pagers)
    return USLOSS_MmuRegion(&dummy);
 } /* vmInitReal */
 
+/*
+ *----------------------------------------------------------------------
+ *
+ * vmDestroy --
+ *
+ * Stub for the VmDestroy system call.
+ *
+ * Results:
+ *      None.
+ *
+ * Side effects:
+ *      VM system is cleaned up.
+ *
+ *----------------------------------------------------------------------
+ */
+static void
+vmDestroy(systemArgs *sysargs)
+{
+   CheckMode();
+   
+   int mappings = (int)sysargs->arg1;
+   int pages 	= (int)sysargs->arg2;
+   int frames	= (int)sysargs->arg3;
+   int pagers	= (int)sysargs->arg4;
+   
+   //check for illegal values
+    if (mappings != pages || pages <= 0 || frames <= 0 || pagers <= 0){
+      USLOSS_Console("vmDestroy(): Illegal values given as input!");
+      sysargs->arg4 = (void *) (long) -1;
+      return;
+    }
+	
+	vmDestroyReal(mappings, pages, frames, pagers);
+   
+} /* vmDestroy */
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * vmDestroyReal --
+ *
+ * Called by vmDestroy.
+ * Frees all of the global data structures
+ *
+ * Results:
+ *      None
+ *
+ * Side effects:
+ *      The MMU is turned off.
+ *
+ *----------------------------------------------------------------------
+ */
+void
+vmDestroyReal(int mappings, int pages, int frames, int pagers)
+{
+	int status;
+	CheckMode();
+	USLOSS_MmuDone();
+	
+	/*
+	* Kill the pagers here.
+    */
+	int i;
+	for (i = 0; i < pagers; i++){
+		status = zap(pagerPID[i]); //I think?
+	}
+	
+	free(frameTable);
+	
+	vmStats.pages = 0;
+	vmStats.frames = 0;
+	
+	status = USLOSS_MmuDone();
+	if (status != USLOSS_MMU_OK) {
+      USLOSS_Console("vmDestroyReal: couldn't destroy MMU, status %d\n", status);
+      abort();
+   }
+   /* 
+    * Print vm statistics.
+    */
+   USLOSS_Console("vmStats:\n");
+   USLOSS_Console("pages: %d\n", vmStats.pages);
+   USLOSS_Console("frames: %d\n", vmStats.frames);
+   //USLOSS_Console("blocks: %d\n", vmStats.blocks);
+   /* and so on... */
+
+} /* vmDestroyReal */
+
 
 /*
  *----------------------------------------------------------------------
@@ -310,42 +375,6 @@ PrintStats(void)
      USLOSS_Console("replaced:       %d\n", vmStats.replaced);
 } /* PrintStats */
 
-
-/*
- *----------------------------------------------------------------------
- *
- * vmDestroyReal --
- *
- * Called by vmDestroy.
- * Frees all of the global data structures
- *
- * Results:
- *      None
- *
- * Side effects:
- *      The MMU is turned off.
- *
- *----------------------------------------------------------------------
- */
-void
-vmDestroyReal(void)
-{
-
-   CheckMode();
-   USLOSS_MmuDone();
-   /*
-    * Kill the pagers here.
-    */
-   /* 
-    * Print vm statistics.
-    */
-   USLOSS_Console("vmStats:\n");
-   USLOSS_Console("pages: %d\n", vmStats.pages);
-   USLOSS_Console("frames: %d\n", vmStats.frames);
-   //USLOSS_Console("blocks: %d\n", vmStats.blocks);
-   /* and so on... */
-
-} /* vmDestroyReal */
 
 /*
  *----------------------------------------------------------------------

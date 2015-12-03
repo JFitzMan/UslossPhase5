@@ -19,6 +19,7 @@
  */
 extern  int    start5(char *);
 extern  void*  vmInitReal(int mappings, int pages, int frames, int pagers);
+extern  void  vmDestroyReal(int mappings, int pages, int frames, int pagers);
 /*
  * Pager priority
  */
