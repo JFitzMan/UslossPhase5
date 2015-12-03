@@ -35,6 +35,7 @@ FTE *frameTable;
 extern int mmuInitialized;
 int pagerMbox;
 int pagerPID[MAXPAGERS];
+int numPagers = 0;
 
 void *vmRegion;
 int debug5 = 1;
@@ -46,6 +47,7 @@ FaultHandler(int  type,  // USLOSS_MMU_INT
 static void vmInit(systemArgs *sysargs);
 static void vmDestroy(systemArgs *sysargs);
 static int Pager(char *buf);
+
 /*
  *----------------------------------------------------------------------
  *
@@ -173,6 +175,7 @@ vmInitReal(int mappings, int pages, int frames, int pagers)
 {
    int status;
    int dummy, dummy2;
+   numPagers = pagers;
    mmuInitialized = 1;
 
    CheckMode();
@@ -277,13 +280,8 @@ vmDestroy(systemArgs *sysargs)
 	if(mmuInitialized != 1)
 		return;
    
-	int mappings = (int)sysargs->arg1;
-	int pages 	= (int)sysargs->arg2;
-	int frames	= (int)sysargs->arg3;
-	int pagers	= (int)sysargs->arg4;
    
-   
-	vmDestroyReal(mappings, pages, frames, pagers);
+	vmDestroyReal();
    
 } /* vmDestroy */
 
@@ -304,28 +302,35 @@ vmDestroy(systemArgs *sysargs)
  *----------------------------------------------------------------------
  */
 void
-vmDestroyReal(int mappings, int pages, int frames, int pagers)
+vmDestroyReal(void)
 {
 	int status;
 	CheckMode();
-
-	USLOSS_MmuDone();
-	
+  
 	/*
 	* Kill the pagers here.
     */
+
 	int i;
-	for (i = 0; i < pagers; i++){
-		status = zap(pagerPID[i]); //I think?
+	for (i = 0; i < numPagers; i++){
+		int msg = ZAPPED;
+    MboxSend(pagerMbox, &msg, sizeof(msg));
+    join(&status);
 	}
+  if(debug5){
+      USLOSS_Console("vmDestroyReal(): pagers quit.\n");
+   }
+
 	
-	free(frameTable);
+	//free(frameTable);
 	
    /* 
     * Print vm statistics.
     */
 	PrintStats();
    /* and so on... */
+
+  USLOSS_MmuDone();
 
 } /* vmDestroyReal */
 
@@ -444,12 +449,21 @@ Pager(char *buf)
   int error = 0;
   int offset;
   getPID_real(&pid);
+
   //enable interrupts
   USLOSS_PsrSet(USLOSS_PsrGet() | USLOSS_PSR_CURRENT_INT);
+
   while(1) {
       /* Wait for fault to occur (receive from mailbox) */
       int pidToHelp = -1;
       MboxReceive(pagerMbox, &pidToHelp, sizeof(int));
+
+      if (pidToHelp == ZAPPED){
+        if(debug5)
+          USLOSS_Console("Pager%c(): Zapped! Quitting\n", buf[0]);
+        quit(1);
+        return 0;
+      }
       //Look for free frame 
       int i;
       for (i = 0; i < vmStats.frames; i++){
