@@ -136,7 +136,7 @@ vmInit(systemArgs *sysargs)
 
     //check for illegal values
     if (mappings != pages || pages <= 0 || frames <= 0 || pagers <= 0){
-      USLOSS_Console("vmInit(): Illegal values given as input!");
+      USLOSS_Console("vmInit(): Illegal values given as input!\n");
       sysargs->arg4 = (void *) (long) -1;
       return;
     }
@@ -274,18 +274,15 @@ vmDestroy(systemArgs *sysargs)
 {
    CheckMode();
    
-   int mappings = (int)sysargs->arg1;
-   int pages 	= (int)sysargs->arg2;
-   int frames	= (int)sysargs->arg3;
-   int pagers	= (int)sysargs->arg4;
+	if(mmuInitialized != 1)
+		return;
    
-   //check for illegal values
-    if (mappings != pages || pages <= 0 || frames <= 0 || pagers <= 0){
-      USLOSS_Console("vmDestroy(): Illegal values given as input!");
-      sysargs->arg4 = (void *) (long) -1;
-      return;
-    }
-	
+	int mappings = (int)sysargs->arg1;
+	int pages 	= (int)sysargs->arg2;
+	int frames	= (int)sysargs->arg3;
+	int pagers	= (int)sysargs->arg4;
+   
+   
 	vmDestroyReal(mappings, pages, frames, pagers);
    
 } /* vmDestroy */
@@ -311,6 +308,7 @@ vmDestroyReal(int mappings, int pages, int frames, int pagers)
 {
 	int status;
 	CheckMode();
+
 	USLOSS_MmuDone();
 	
 	/*
@@ -323,21 +321,10 @@ vmDestroyReal(int mappings, int pages, int frames, int pagers)
 	
 	free(frameTable);
 	
-	vmStats.pages = 0;
-	vmStats.frames = 0;
-	
-	status = USLOSS_MmuDone();
-	if (status != USLOSS_MMU_OK) {
-      USLOSS_Console("vmDestroyReal: couldn't destroy MMU, status %d\n", status);
-      abort();
-   }
    /* 
     * Print vm statistics.
     */
-   USLOSS_Console("vmStats:\n");
-   USLOSS_Console("pages: %d\n", vmStats.pages);
-   USLOSS_Console("frames: %d\n", vmStats.frames);
-   //USLOSS_Console("blocks: %d\n", vmStats.blocks);
+	PrintStats();
    /* and so on... */
 
 } /* vmDestroyReal */
