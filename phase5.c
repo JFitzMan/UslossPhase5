@@ -47,6 +47,7 @@ FaultHandler(int  type,  // USLOSS_MMU_INT
 static void vmInit(systemArgs *sysargs);
 static void vmDestroy(systemArgs *sysargs);
 static int Pager(char *buf);
+static int PagerClock();
 
 /*
  *----------------------------------------------------------------------
@@ -314,12 +315,12 @@ vmDestroyReal(void)
 	int i;
 	for (i = 0; i < numPagers; i++){
 		int msg = ZAPPED;
-    MboxSend(pagerMbox, &msg, sizeof(msg));
-    join(&status);
+		MboxSend(pagerMbox, &msg, sizeof(msg));
+		join(&status);
 	}
-  if(debug5){
-      USLOSS_Console("vmDestroyReal(): pagers quit.\n");
-   }
+	if(debug5){
+		USLOSS_Console("vmDestroyReal(): pagers quit.\n");
+	}
 
 	//free frame table
 	free(frameTable);
@@ -330,12 +331,12 @@ vmDestroyReal(void)
 	PrintStats();
    /* and so on... */
 
-  USLOSS_MmuDone();
-  if(debug5){
-      USLOSS_Console("vmDestroyReal(): MMU destroyed.\n");
-   }
+	USLOSS_MmuDone();
+	if(debug5){
+		USLOSS_Console("vmDestroyReal(): MMU destroyed.\n");
+	}
 
-   mmuInitialized = 0;
+	mmuInitialized = 0;
 
 } /* vmDestroyReal */
 
@@ -478,6 +479,11 @@ Pager(char *buf)
           if(frameTable[i].state == UNUSED){
             break;
           }
+		  else if (i == vmStats.frames-1){
+			//Call PagerClock?
+			i = PagerClock(i);
+			break;
+		  }
       }
 
       //look for free page in procs page table
@@ -500,7 +506,7 @@ Pager(char *buf)
       //map the page to the open frame i
       error = USLOSS_MmuMap(TAG, j, i, USLOSS_MMU_PROT_RW);
       if (error != USLOSS_MMU_OK){
-         USLOSS_Console("Pager(): couldn't map MMU, status %d\n", error);
+		USLOSS_Console("Pager(): couldn't map MMU, status %d\n", error);
         abort();
       }
       if(debug5)
@@ -528,3 +534,40 @@ Pager(char *buf)
     }
     return 0;
 } /* Pager */
+
+static int
+PagerClock(int cur)
+{
+	int freeFrame = 0;
+	int error;
+	//find frame to replace
+	
+	if(debug5){
+		USLOSS_Console("PagerClock() called. \n frames= %d\n cur = %d\n", vmStats.frames, cur);
+	}
+	
+	
+	if(cur >= vmStats.frames-1){ //Subtract 1 to account for 0 indexing
+		freeFrame = cur % (vmStats.frames-1);
+		if(debug5)
+			USLOSS_Console("PagerClock(): freeFrame = %d\n", freeFrame);
+	}
+	
+	int i;
+	/*
+	for(i=0; i<vmStats.frames; i++){
+		//Eventually replace preceding if with checks for clean, dirty, ref, unref in this loop
+	}
+	*/
+	
+	//store page on disk
+	//error = diskWriteReal(...);
+		//update page.diskBlock
+		//frameTable[freeFrame].page.diskBlock = ...;
+	
+	//unmap page
+	//error = USLOSS_MmuUnmap(TAG, frameTable[freeFrame].page);
+	
+	//send free frame # back to Pager
+	return freeFrame;
+}
