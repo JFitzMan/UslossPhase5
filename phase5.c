@@ -147,8 +147,9 @@ vmInit(systemArgs *sysargs)
     }
 
     vmRegion = vmInitReal(mappings, pages, frames, pagers);
+
     //set arg1 to the address of vmRegion
-    sysargs->arg1 = (void*) vmRegion;
+    sysargs->arg1 = vmRegion;
     return;
 } /* vmInit */
 
@@ -247,8 +248,6 @@ vmInitReal(int mappings, int pages, int frames, int pagers)
    vmStats.replaced = 0;
 
    vmRegion = USLOSS_MmuRegion(&dummy);
-
-   //vmRegion = malloc( USLOSS_MmuPageSize() * pages );
 
    if(debug5){
       USLOSS_Console("vmInitReal(): diskBlocks = %d. Num pages: %d PageSize = %d frames = %d\n", vmStats.diskBlocks, dummy, USLOSS_MmuPageSize(), vmStats.frames);
@@ -490,7 +489,7 @@ Pager(char *buf)
 
 
       if(debug5)
-          USLOSS_Console("Pager%c(): Frame %d is free\n", buf[0], i);
+          USLOSS_Console("Pager%c(): Frame %d and Page %d is free\n", buf[0], i, j);
 
       /* If there isn't one then use clock algorithm to
        * replace a page (perhaps write to disk) 
@@ -513,7 +512,7 @@ Pager(char *buf)
       processes[pidToHelp].pageTable[j].frame = i;
 
       //clear the new page
-      memset(vmRegion+offset, 0, USLOSS_MmuPageSize());
+      memset(vmRegion+(j*USLOSS_MmuPageSize()), 0, USLOSS_MmuPageSize());
       
     
       //update the frame table

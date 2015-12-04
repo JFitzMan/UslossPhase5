@@ -623,7 +623,7 @@ int VmInit(int mappings, int pages, int frames, int pagers, void **region)
 
     USLOSS_Syscall(&sysArg);
 
-    *region = sysArg.arg1;  // return address of VM Region
+    region = sysArg.arg1;  // return address of VM Region
 
     if ((int) sysArg.arg4 == 0) {
         return 0;
