@@ -454,6 +454,7 @@ Pager(char *buf)
   int pid = -1;
   int error = 0;
   int offset;
+  int status
   getPID_real(&pid);
 
   //enable interrupts
@@ -479,12 +480,26 @@ Pager(char *buf)
           if(frameTable[i].state == UNUSED){
             break;
           }
-		  else if (i == vmStats.frames-1){
+		  //I believe this will only go through if all frames have been used.
+		  else if (i == vmStats.frames-1 && frameTable[i].state == USED){		  
 			//Call PagerClock?
 			i = PagerClock(i);
 			break;
 		  }
       }
+
+	//store page on disk. Homer explicitly said Pager does this part.
+		//status = diskWriteReal(1, ?, ?, frameTable[i].page);
+	//update page.diskBlock
+		/* 
+		if(status == -1){
+			ULOSS_Console("Pager(): Could not write page to disk. Abort.");
+			abort();
+		}
+		frameTable[i].page.diskBlock = status; //?
+		*/
+	//unmap page
+		//error = USLOSS_MmuUnmap(TAG, frameTable[i].page);
 
       //look for free page in procs page table
       int j;
@@ -540,6 +555,7 @@ PagerClock(int cur)
 {
 	int freeFrame = 0;
 	int error;
+	int *accessPtr;
 	//find frame to replace
 	
 	if(debug5){
@@ -557,16 +573,32 @@ PagerClock(int cur)
 	/*
 	for(i=0; i<vmStats.frames; i++){
 		//Eventually replace preceding if with checks for clean, dirty, ref, unref in this loop
+		error = USLOSS_MmuGetAccess(frameTable[i], accessPtr);
+		if(error != USLOSS_MMU_OK)
+			USLOSS_Console("PagerClock(): Couldn't get accessPtr, status %d\n", error);
+			
+		//Still haven't thought of what to actually do with these statuses.
+		//I was thinking of adding some sort of "switch priority" variable to the frame struct but I don't know if that's allowed?
+		//I'm also not 100% sure if this is the correct way to look at the frame's access pointer.
+		if(*accessPtr != USLOSS_MMU_REF && *accessPtr != USLOSS_MMU_DIRTY){
+			//First priority to switch
+		}
+		else if(*accessPtr != USLOSS_MMU_REF && *accessPtr == USLOSS_MMU_DIRTY){
+			//Second priority
+		}
+		else if(*accessPtr == USLOSS_MMU_REF && *accessPtr != USLOSS_MMU_DIRTY){
+			//Third
+		}
+		else if(*accessPtr == USLOSS_MMU_REF && *accessPtr == USLOSS_MMU_DIRTY){
+			//Last
+		}
+		
+		if(frameTable[i]'s priority < frameTable[freeFrame]'s priority){
+			freeFrame = i;
+		}
+		//If there's a tie just go with the first one.
 	}
 	*/
-	
-	//store page on disk
-	//error = diskWriteReal(...);
-		//update page.diskBlock
-		//frameTable[freeFrame].page.diskBlock = ...;
-	
-	//unmap page
-	//error = USLOSS_MmuUnmap(TAG, frameTable[freeFrame].page);
 	
 	//send free frame # back to Pager
 	return freeFrame;
