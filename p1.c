@@ -39,6 +39,7 @@ p1_fork(int pid)
             processes[pid%MAXPROC].pageTable[i].state = UNUSED;
             processes[pid%MAXPROC].pageTable[i].frame = -1;
             processes[pid%MAXPROC].pageTable[i].diskBlock = -1;
+            processes[pid%MAXPROC].pageTable[i].pageNum = i;
         }
     }
     else{
@@ -51,16 +52,56 @@ p1_fork(int pid)
 void
 p1_switch(int old, int new)
 {
-    //if (DEBUG)
-        //USLOSS_Console("p1_switch() called: old = %d, new = %d\n", old, new);
+    if (DEBUG)
+        USLOSS_Console("p1_switch() called: old = %d, new = %d\n", old, new);
 
-    if(mmuInitialized){
+    if(mmuInitialized && processes[old].pid == old && processes[new].pid == new){
+        char toWrite [USLOSS_MmuPageSize() + 1];
+        int error1 = 0;
         vmStats.switches++;
         //unmap any page currently in a frame. Just need page #
-        //get page# from process page table
-        //profit
+        int i;
+        for (i = 0; i < vmStats.pages; i++){
+            if (processes[old].pageTable[i].state == INFRAME){
+                int toUnmap = processes[old].pageTable[i].pageNum;
+                if (DEBUG){
+                    USLOSS_Console("p1_switch(): about to unmap page %d\n", toUnmap);
+                }
+
+                memcpy(toWrite, vmRegion+(USLOSS_MmuPageSize()*i), USLOSS_MmuPageSize());
+
+                error1 = USLOSS_MmuUnmap(TAG, toUnmap);
+                if (error1 != USLOSS_MMU_OK){
+                  USLOSS_Console("p1_switch(): couldn't unmap MMU, status %d\n", error1);
+                  abort();
+                }
+                frameTable[i].state = UNUSED;
+                frameTable[i].pid = -1;
+                frameTable[i].dirty = -1;
+                frameTable[i].ref = -1;
+                frameTable[i].page = NULL;
+            }
+        }//end for
 
         //check new process page table, see if any of its pages are mapped to frames.
+        for (i = 0; i < vmStats.pages; i++){
+            if (processes[new].pageTable[i].state == INFRAME){
+
+                if (DEBUG){
+                    USLOSS_Console("p1_switch(): about to map page %d\n", i);
+                }
+                error1 = USLOSS_MmuMap(TAG, i, processes[new].pageTable[i].frame, USLOSS_MMU_PROT_RW);
+                if (error1 != USLOSS_MMU_OK){
+                    USLOSS_Console("p1_switch(): couldn't map MMU, status %d\n", error1);
+                    abort();
+                }
+                frameTable[i].state = USED;
+                frameTable[i].pid = new;
+                frameTable[i].dirty = -1;
+                frameTable[i].ref = 1;
+                frameTable[i].page = &processes[new].pageTable[i];
+            }
+        }
         //map them to the frames they belong to
         //more profit
     }

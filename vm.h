@@ -14,6 +14,7 @@
 #define UNUSED  500
 #define INFRAME 501
 #define USED    502
+#define ONDISK  503
 #define ZAPPED  -500
 /* You'll probably want more states */
 
@@ -25,6 +26,7 @@ typedef struct PTE {
     int  state;      // See above.
     int  frame;      // Frame that stores the page (if any). -1 if none.
     int  diskBlock;  // Disk block that stores the page (if any). -1 if none.
+    int  pageNum;
     // Add more stuff here
 } PTE;
 
@@ -35,6 +37,8 @@ typedef struct FTE {
     int state;
     PTE *page;       // address of the page stored in the frame (if any) -1 if none
     int pid;        // pid of the process who owns the page
+    int dirty;
+    int ref;
 } FTE;
 
 /*
@@ -47,7 +51,10 @@ typedef struct Process {
 } Process;
 
 Process processes[50];
+FTE *frameTable;
 int mmuInitialized;
+int curRefBlock;
+void *vmRegion;
 /*
  * Information about page faults. This message is sent by the faulting
  * process to the pager to request that the fault be handled.
