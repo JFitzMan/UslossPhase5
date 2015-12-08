@@ -55,10 +55,12 @@ p1_switch(int old, int new)
     if (DEBUG)
         USLOSS_Console("p1_switch() called: old = %d, new = %d\n", old, new);
 
-    if(mmuInitialized && processes[old].pid == old && processes[new].pid == new){
+    if(mmuInitialized){
+        vmStats.switches++;
+        if (processes[old].pid == old && processes[new].pid == new){
         char toWrite [USLOSS_MmuPageSize() + 1];
         int error1 = 0;
-        vmStats.switches++;
+        
         //unmap any page currently in a frame. Just need page #
         int i;
         for (i = 0; i < vmStats.pages; i++){
@@ -75,11 +77,10 @@ p1_switch(int old, int new)
                   USLOSS_Console("p1_switch(): couldn't unmap MMU, status %d\n", error1);
                   abort();
                 }
+                /*
                 frameTable[i].state = UNUSED;
                 frameTable[i].pid = -1;
-                frameTable[i].dirty = -1;
-                frameTable[i].ref = -1;
-                frameTable[i].page = NULL;
+                frameTable[i].page = NULL;*/
             }
         }//end for
 
@@ -95,15 +96,15 @@ p1_switch(int old, int new)
                     USLOSS_Console("p1_switch(): couldn't map MMU, status %d\n", error1);
                     abort();
                 }
+                /*
                 frameTable[i].state = USED;
                 frameTable[i].pid = new;
-                frameTable[i].dirty = -1;
-                frameTable[i].ref = 1;
-                frameTable[i].page = &processes[new].pageTable[i];
+                frameTable[i].page = &processes[new].pageTable[i];*/
             }
         }
         //map them to the frames they belong to
         //more profit
+    }
     }
     else{
 

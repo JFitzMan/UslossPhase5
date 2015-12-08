@@ -529,6 +529,8 @@ Pager(char *buf)
 
         //write to disk
 
+        processes[pidToHelp].pageTable[toUnmap].state = ONDISK;
+
         error = USLOSS_MmuUnmap(TAG, toUnmap);
         if (error != USLOSS_MMU_OK){
           USLOSS_Console("Pager(): couldn't unmap MMU, status %d\n", error);
@@ -562,9 +564,9 @@ Pager(char *buf)
         }
     
       //update the frame table
-      //frameTable[frameToMap].state = USED;
-      //frameTable[frameToMap].page = &processes[pidToHelp].pageTable[pageToMap];
-      //frameTable[frameToMap].pid = pidToHelp;
+      frameTable[frameToMap].state = USED;
+      frameTable[frameToMap].page = &processes[pidToHelp].pageTable[pageToMap];
+      frameTable[frameToMap].pid = pidToHelp;
 
       
       /* Load page into frame from disk, if necessary */
