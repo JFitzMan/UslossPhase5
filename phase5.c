@@ -308,6 +308,8 @@ vmDestroyReal(void)
 	int status;
 	CheckMode();
 
+  mmuInitialized = 0;
+
 	/*
 	* Kill the pagers here.
     */
@@ -336,7 +338,7 @@ vmDestroyReal(void)
 		USLOSS_Console("vmDestroyReal(): MMU destroyed.\n");
 	}
 
-	mmuInitialized = 0;
+	
 
 } /* vmDestroyReal */
 
@@ -454,7 +456,7 @@ Pager(char *buf)
   int pid = -1;
   int error = 0;
   int offset;
-  int status
+  int status;
   getPID_real(&pid);
 
   //enable interrupts

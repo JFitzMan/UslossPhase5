@@ -56,6 +56,13 @@ p1_switch(int old, int new)
 
     if(mmuInitialized){
         vmStats.switches++;
+        //unmap any page currently in a frame. Just need page #
+        //get page# from process page table
+        //profit
+
+        //check new process page table, see if any of its pages are mapped to frames.
+        //map them to the frames they belong to
+        //more profit
     }
     else{
 
