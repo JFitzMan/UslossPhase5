@@ -401,8 +401,15 @@ FaultHandler(int  type /* USLOSS_MMU_INT */,
              void *arg  /* Integer, Offset within VM region */)
 {
    int cause;
+   int pid = 0;
+   getPID_real(&pid);
+   int dummy = 0;
 
-   int offset = (int) (long) arg;
+   int offset = (int) (long)arg;
+   if(debug5){
+      USLOSS_Console("FaultHandler():         offset = %d\n", offset);
+   }
+  faults[pid%MAXPROC].offset = offset;
 
    assert(type == USLOSS_MMU_INT);
    cause = USLOSS_MmuGetCause();
@@ -413,15 +420,14 @@ FaultHandler(int  type /* USLOSS_MMU_INT */,
     * reply.
     */
 
-   int pid = 0;
-   getPID_real(&pid);
+   
 
    faults[pid%MAXPROC].pid = pid;
-   faults[pid%MAXPROC].addr = vmRegion + offset;
+   faults[pid%MAXPROC].addr = USLOSS_MmuRegion(&dummy) + faults[pid%MAXPROC].offset;
    faults[pid%MAXPROC].replyMbox = MboxCreate(0, 0);
-   faults[pid%MAXPROC].offset = offset;
+   
    if(debug5){
-      USLOSS_Console("FaultHandler(): sending fault to pagerMbox, offset = %d addr = %p\n", offset, vmRegion + offset);
+      USLOSS_Console("FaultHandler(): sending fault to pagerMbox, offset = %d addr = %p\n", faults[pid%MAXPROC].offset, faults[pid%MAXPROC].addr);
    }
 
    int msg = pid;
@@ -495,22 +501,15 @@ Pager(char *buf)
       }
       frameToMap = i;
 
-      //look for free page in procs page table
-      int j;
-      for (j = 0; i<vmStats.pages; j++){
-        if(processes[pidToHelp].pageTable[j].state == UNUSED)
-          break;
-      }
-      pageToMap = j;
-
+      pageToMap =(int) (long)((faults[pidToHelp].addr)-(vmRegion))/USLOSS_MmuPageSize();
 
       if(debug5)
-          USLOSS_Console("Pager%c(): Frame %d and Page %d are free free\n\t  page currently in frame: dirty: %d, ref: %d\n", buf[0], frameToMap, pageToMap, frameTable[i].dirty, frameTable[i].ref);
+          USLOSS_Console("Pager%c(): Frame %d is going to be written to. Page %d was requested\n\t  page currently in frame: dirty: %d, ref: %d\n", buf[0], frameToMap, pageToMap, frameTable[i].dirty, frameTable[i].ref);
 
       offset = faults[pidToHelp].offset;
 
       //if it's dirty, write it to the disk
-      if (frameTable[i].dirty == USLOSS_MMU_DIRTY){
+      if (frameTable[frameToMap].dirty == USLOSS_MMU_DIRTY){
 
         char toWrite [USLOSS_MmuPageSize() + 1];
         int toUnmap = frameTable[frameToMap].page->pageNum;
@@ -547,7 +546,7 @@ Pager(char *buf)
         abort();
       }
       if(debug5)
-        USLOSS_Console("Pager(): mapped to frame %d\n", frameToMap);
+        USLOSS_Console("Pager(): mapped page to frame %d\n", frameToMap);
 
       //update the process page table
       vmStats.new++;
@@ -557,6 +556,7 @@ Pager(char *buf)
       //clear the new page
       memset(vmRegion+(pageToMap*USLOSS_MmuPageSize()), 0, USLOSS_MmuPageSize());
 
+      //unmap the page
       error = USLOSS_MmuUnmap(TAG, pageToMap);
         if (error != USLOSS_MMU_OK){
           USLOSS_Console("Pager(): couldn't unmap MMU, status %d\n", error);
@@ -567,6 +567,15 @@ Pager(char *buf)
       frameTable[frameToMap].state = USED;
       frameTable[frameToMap].page = &processes[pidToHelp].pageTable[pageToMap];
       frameTable[frameToMap].pid = pidToHelp;
+
+      int accessPtr;
+
+      error = USLOSS_MmuGetAccess(frameToMap, &accessPtr);
+      frameTable[frameToMap].dirty = accessPtr&USLOSS_MMU_DIRTY;
+      frameTable[frameToMap].ref = accessPtr&USLOSS_MMU_REF;
+      if(error != USLOSS_MMU_OK)
+        USLOSS_Console("Pager(): Couldn't get accessPtr, status %d\n", error);
+  
 
       
       /* Load page into frame from disk, if necessary */
@@ -581,6 +590,7 @@ static int
 PagerClock(int cur)
 {
 	int freeFrame = 0;
+  int hand = 0;
 	int error;
 	int accessPtr;
 	//find frame to replace
@@ -597,45 +607,54 @@ PagerClock(int cur)
 	}
 	
 	int i;
-  int lastBestFrame = 0;
-  int lastBestPriority = 5;
+  int notFoundFrame = 1;
 	
-	for(i=0; i<vmStats.frames; i++){
+	while(notFoundFrame){
     accessPtr = 0;
-		error = USLOSS_MmuGetAccess(i, &accessPtr);
+		error = USLOSS_MmuGetAccess(hand, &accessPtr);
 		if(error != USLOSS_MMU_OK)
 			USLOSS_Console("PagerClock(): Couldn't get accessPtr, status %d\n", error);
+    else if (debug5)
+      USLOSS_Console("  Access Pointer = %d\n", accessPtr);
 			
-		if( ((accessPtr&USLOSS_MMU_REF) != USLOSS_MMU_REF) && ((accessPtr&USLOSS_MMU_DIRTY) != USLOSS_MMU_DIRTY)
-      && lastBestPriority > 1){
+		if ((accessPtr&USLOSS_MMU_REF) == USLOSS_MMU_REF){
 		 //First priority to switch
-      lastBestPriority = 1;
-      lastBestFrame = i;
-		}
-		else if( ((accessPtr&USLOSS_MMU_REF) != USLOSS_MMU_REF) && ((accessPtr&USLOSS_MMU_DIRTY) == USLOSS_MMU_DIRTY) 
-      && lastBestPriority > 2){
-			//Second priority
-      lastBestPriority = 2;
-      lastBestFrame = i;
-		}
-		else if( ((accessPtr&USLOSS_MMU_REF) == USLOSS_MMU_REF) && ((accessPtr&USLOSS_MMU_DIRTY) != USLOSS_MMU_DIRTY) 
-      && lastBestPriority > 3){
-			//Third
-      lastBestPriority = 3;
-      lastBestFrame = i;
-		}
-		else if (lastBestPriority > 4){
-			lastBestPriority = 4;
-      lastBestFrame = i;
-		}
-	
-	}
+      if(debug5){
+        USLOSS_Console("  frame %d ref is 1, setting it to 0\n", hand);
+      }
+      //set ref bit to 0
+      accessPtr = accessPtr & USLOSS_MMU_DIRTY;
+      if(debug5){
+        USLOSS_Console("  frame %d ref bit now equals %d\n", accessPtr&USLOSS_MMU_REF);
+      }
+      USLOSS_MmuSetAccess(hand,accessPtr);
+		}//end if
+		else {
+      if(debug5){
+        USLOSS_Console("  frame %d ref is 0, will use this frame\n", hand);
+      }
+      notFoundFrame = 0;
+		}//end else
+
+    if (hand == vmStats.frames-1) hand = 0;
+    else hand++;
+
+    if(debug5){
+        USLOSS_Console("  i = %d\n", i);
+      }
+	}//end for
+
   accessPtr = 0;
 
-  freeFrame = lastBestFrame;
+  if (hand == 0) freeFrame = vmStats.frames-1;
+  else freeFrame = hand-1;
+
+  if (debug5){
+    USLOSS_Console("PagerClock(): returning frame %d for use\n", freeFrame);
+  }
   error = USLOSS_MmuGetAccess(freeFrame, &accessPtr);
   frameTable[freeFrame].dirty = accessPtr&USLOSS_MMU_DIRTY;
-  frameTable[i].ref = accessPtr&USLOSS_MMU_REF;
+  frameTable[freeFrame].ref = accessPtr&USLOSS_MMU_REF;
   if(error != USLOSS_MMU_OK)
     USLOSS_Console("PagerClock(): Couldn't get accessPtr, status %d\n", error);
 	
