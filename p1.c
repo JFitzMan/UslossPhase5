@@ -9,7 +9,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#define DEBUG 0
+#define DEBUG 1
 
 extern int debugflag;
 //extern Process processes[50];
@@ -80,10 +80,6 @@ p1_switch(int old, int new)
                 }
 
                 vmStats.freeFrames--;
-                /*
-                frameTable[i].state = UNUSED;
-                frameTable[i].pid = -1;
-                frameTable[i].page = NULL;*/
             }
         }//end for
 
@@ -102,7 +98,12 @@ p1_switch(int old, int new)
                 }
 
                 vmStats.freeFrames++;
-
+                /*
+                error = USLOSS_MmuGetAccess(frameToMap, &accessPtr);
+                accessPtr = accessPtr&USLOSS_MMU_REF;
+                frameTable[frameToMap].dirty = accessPtr&USLOSS_MMU_DIRTY;
+                USLOSS_MmuSetAccess(frameToMap, accessPtr);
+*/
                 if ( frameTable[processes[new].pageTable[i].frame].ref != -1 && frameTable[processes[new].pageTable[i].frame].dirty != -1){
                     accessPtr = frameTable[processes[new].pageTable[i].frame].ref + frameTable[processes[new].pageTable[i].frame].dirty;
                     
@@ -110,6 +111,7 @@ p1_switch(int old, int new)
                     if (DEBUG){
                         USLOSS_Console("p1_switch(): ref = %d and dirty = %d\n", accessPtr&USLOSS_MMU_REF, accessPtr&USLOSS_MMU_DIRTY);
                     }
+    
                 }
     
                 
