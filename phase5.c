@@ -71,7 +71,6 @@ start4(char *arg)
     int result;
     int status;
     mmuInitialized = 0;
-    curRefBlock = 0;
     hand = 0;
 
     if(debug5){
@@ -96,6 +95,11 @@ start4(char *arg)
       processes[i].numPages = -1;
       processes[i].pid = -1;
       processes[i].pageTable = NULL;
+    }
+
+    //initialize free blocks to all be free
+    for (i = 0; i < 32; i++){
+      freeBlocks[i] = 0;
     }
 
     result = Spawn("Start5", start5, NULL, 8*USLOSS_MIN_STACK, 2, &pid);
@@ -329,7 +333,7 @@ vmDestroyReal(void)
 	}
 
 	//free frame table
-	//free(frameTable);
+	free(frameTable);
 	
    /* 
     * Print vm statistics.
@@ -531,9 +535,15 @@ Pager(char *buf)
           //write to disk
           int block = 0;
           if (processes[pidToHelp].pageTable[toUnmap].diskBlock == -1){
-              processes[pidToHelp].pageTable[toUnmap].diskBlock = curRefBlock;
-              block = curRefBlock;
-              curRefBlock++;
+              //find next free disk block
+              for (i = 0; i < 32; i++){
+                  if (freeBlocks[i] == 0){
+                    block = i;
+                    freeBlocks[i] = 1;
+                    break;
+                  }
+              }
+              processes[pidToHelp].pageTable[toUnmap].diskBlock = block;
               vmStats.freeDiskBlocks--;
           }
           else{

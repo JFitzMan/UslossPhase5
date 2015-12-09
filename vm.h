@@ -50,12 +50,15 @@ typedef struct Process {
     int  pid;
 } Process;
 
+
 Process processes[50];
 FTE *frameTable;
 int mmuInitialized;
-int curRefBlock;
+int freeBlocks[32];
 void *vmRegion;
 int hand;
+
+
 /*
  * Information about page faults. This message is sent by the faulting
  * process to the pager to request that the fault be handled.

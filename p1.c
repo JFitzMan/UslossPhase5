@@ -127,24 +127,28 @@ p1_quit(int pid)
 {
     if (DEBUG)
         USLOSS_Console("p1_quit() called: pid = %d\n", pid);
-} /* p1_quit */
-/*
-int
-check_io()
-{
-    int toReturn = 0;
-    
-    Going to need more work before this will compilels
 
-    mailbox* MailBoxTable = getMboxTable();
-    int i;
+    //if the mmu is initialized and the quitting process has a page table
+    if( mmuInitialized && processes[pid].pid == pid ){
 
-    for (i = 0; i < 7; i ++){
-    	if (MailBoxTable[i].nextBlockedProc != NULL)
-    	{
-    		toReturn = 1;
-    	}
+        //check if the process has any disk blocks to free
+        int i;
+        for (i = 0; i < processes[pid].numPages; i++){
+            if(processes[pid%MAXPROC].pageTable[i].diskBlock != -1){
+                //free disk block
+                freeBlocks[processes[pid%MAXPROC].pageTable[i].diskBlock] = 0;
+                vmStats.freeDiskBlocks++;
+            }
+        }
+
+        //free the page table
+        free(processes[pid%MAXPROC].pageTable);
+
+        //clear the process table
+        processes[pid%MAXPROC].pid = -1;
+
+
+
     }
-    
-    return toReturn;
-}*/
+} /* p1_quit */
+
