@@ -329,7 +329,7 @@ vmDestroyReal(void)
 	}
 
 	//free frame table
-	free(frameTable);
+	//free(frameTable);
 	
    /* 
     * Print vm statistics.
@@ -484,7 +484,7 @@ Pager(char *buf)
       if (pidToHelp == ZAPPED){
         if(debug5)
           USLOSS_Console("Pager%c(): Zapped! Quitting\n", buf[0]);
-        quit(1);
+        quit(0);
         return 0;
       }
 
