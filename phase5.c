@@ -497,84 +497,94 @@ Pager(char *buf)
           }
 		      else if (i == vmStats.frames-1 && frameTable[i].state == USED){		  
 			      //Call PagerClock
-            vmStats.freeFrames = 0;
 			      i = PagerClock(i);
 			      break;
 		      }
       }
-      frameToMap = i;
 
+      //grab the frame, and the page requested
+      frameToMap = i;
       pageToMap =(int) (long)((faults[pidToHelp].addr)-(vmRegion))/USLOSS_MmuPageSize();
 
       if(debug5)
           USLOSS_Console("Pager%c(): Frame %d is going to be written to. Page %d was requested\n\t  page currently in frame: dirty: %d, ref: %d\n", buf[0], frameToMap, pageToMap, frameTable[i].dirty, frameTable[i].ref);
 
-      offset = faults[pidToHelp].offset;
-
       //if it's dirty, write it to the disk
       if (frameTable[frameToMap].dirty == USLOSS_MMU_DIRTY){
 
-        char toWrite [USLOSS_MmuPageSize() + 1];
-        int toUnmap = frameTable[frameToMap].page->pageNum;
+          char toWrite [USLOSS_MmuPageSize() + 1];
+          int toUnmap = frameTable[frameToMap].page->pageNum;
 
-        if(debug5)
-          USLOSS_Console("Pager(): dirty frame! Saving to disk\n");
+          if(debug5)
+            USLOSS_Console("Pager(): dirty frame! Saving to disk\n");
 
-        //map pagers own page onto the frame to get access
-        error = USLOSS_MmuMap(TAG, 0, frameToMap, USLOSS_MMU_PROT_RW);
-        if (error != USLOSS_MMU_OK){
-          USLOSS_Console("Pager(): couldn't map page %d frame %d in MMU, status %d\n", toUnmap, frameToMap, error);
-          abort();
-        }
+          //map pagers own page onto the frame to get access
+          error = USLOSS_MmuMap(TAG, 0, frameToMap, USLOSS_MMU_PROT_RW);
+          if (error != USLOSS_MMU_OK){
+             USLOSS_Console("Pager(): couldn't map page %d frame %d in MMU, status %d\n", toUnmap, frameToMap, error);
+             abort();
+          }
 
-        memcpy(toWrite, vmRegion, USLOSS_MmuPageSize());
+          //copy bytes into buffer
+          memcpy(toWrite, vmRegion, USLOSS_MmuPageSize());
 
-        //write to disk
-        int block = 0;
-        if (processes[pidToHelp].pageTable[toUnmap].diskBlock == -1){
-          processes[pidToHelp].pageTable[toUnmap].diskBlock = curRefBlock;
-          block = curRefBlock;
-          curRefBlock++;
-        }
-        else{
-          block = processes[pidToHelp].pageTable[toUnmap].diskBlock;
-        }
-        if(debug5)
-          USLOSS_Console("Pager(): page %d will be written to block %d\n", toUnmap, block);
+          //write to disk
+          int block = 0;
+          if (processes[pidToHelp].pageTable[toUnmap].diskBlock == -1){
+              processes[pidToHelp].pageTable[toUnmap].diskBlock = curRefBlock;
+              block = curRefBlock;
+              curRefBlock++;
+              vmStats.freeDiskBlocks--;
+          }
+          else{
+              block = processes[pidToHelp].pageTable[toUnmap].diskBlock;
+          }
+          if(debug5)
+              USLOSS_Console("Pager(): page %d will be written to block %d\n", toUnmap, block);
 
-        processes[pidToHelp].pageTable[toUnmap].state = ONDISK;
-        processes[pidToHelp].pageTable[toUnmap].frame = -1;
+          diskWriteReal(1, block, 0, 8, toWrite);
+          processes[pidToHelp].pageTable[toUnmap].state = ONDISK;
+          processes[pidToHelp].pageTable[toUnmap].frame = -1;
 
+          //unmap from frame, no longe need access
+          error = USLOSS_MmuUnmap(TAG, 0);
+          if (error != USLOSS_MMU_OK){
+              USLOSS_Console("Pager(): couldn't unmap MMU, status %d\n", error);
+              abort();
+          }
+      }//end disk write
 
-
-        error = USLOSS_MmuUnmap(TAG, 0);
-        if (error != USLOSS_MMU_OK){
-          USLOSS_Console("Pager(): couldn't unmap MMU, status %d\n", error);
-          abort();
-        }
-
-
-      }
-
-      //map the page j to the open frame i
+      //map one of the pagers pages onto the frame to be mapped
       error = USLOSS_MmuMap(TAG, pageToMap, frameToMap, USLOSS_MMU_PROT_RW);
       if (error != USLOSS_MMU_OK){
-		    USLOSS_Console("Pager(): couldn't map MMU, status %d\n", error);
-        abort();
+		      USLOSS_Console("Pager(): couldn't map MMU, status %d\n", error);
+          abort();
       }
-      if(debug5)
-        USLOSS_Console("Pager(): mapped page to frame %d\n", frameToMap);
-
+    
       //update the process page table
+      //if it's a new page tha that hasn't been accessed...
       if( processes[pidToHelp].pageTable[pageToMap].beenRef == 0){
-        vmStats.new++;
-        processes[pidToHelp].pageTable[pageToMap].beenRef = 1;
+          vmStats.new++;
+          processes[pidToHelp].pageTable[pageToMap].beenRef = 1;
+          //clear the new page
+          memset(vmRegion+(pageToMap*USLOSS_MmuPageSize()), 0, USLOSS_MmuPageSize());
+          if(debug5)
+              USLOSS_Console("Pager(): mapped new page to frame %d and zeroed it out\n", frameToMap);
       }
+      //it's been accessed and needs to be loaded from the disk...
+      else{
+          char readFromDisk [USLOSS_MmuPageSize() + 1];
+          int block = processes[pidToHelp].pageTable[pageToMap].diskBlock;
+          diskReadReal(1, block, 0, 8, readFromDisk);
+          memcpy(vmRegion+(pageToMap*USLOSS_MmuPageSize()), readFromDisk, USLOSS_MmuPageSize());
+          if(debug5)
+          USLOSS_Console("Pager(): mapped page to frame %d, and read contents from disk\n", frameToMap);
+      }
+
       processes[pidToHelp].pageTable[pageToMap].state = INFRAME;
       processes[pidToHelp].pageTable[pageToMap].frame = frameToMap;
 
-      //clear the new page
-      memset(vmRegion+(pageToMap*USLOSS_MmuPageSize()), 0, USLOSS_MmuPageSize());
+      
 
       //unmap the page
       error = USLOSS_MmuUnmap(TAG, pageToMap);
@@ -594,7 +604,7 @@ Pager(char *buf)
       frameTable[frameToMap].dirty = accessPtr&USLOSS_MMU_DIRTY;
       frameTable[frameToMap].ref = accessPtr&USLOSS_MMU_REF;
       if(error != USLOSS_MMU_OK)
-        USLOSS_Console("Pager(): Couldn't get accessPtr, status %d\n", error);
+          USLOSS_Console("Pager(): Couldn't get accessPtr, status %d\n", error);
   
 
       

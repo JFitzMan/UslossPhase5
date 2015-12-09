@@ -16,7 +16,6 @@
 #define USED    502
 #define ONDISK  503
 #define ZAPPED  -500
-/* You'll probably want more states */
 
 
 /*

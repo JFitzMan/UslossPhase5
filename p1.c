@@ -101,6 +101,8 @@ p1_switch(int old, int new)
                     abort();
                 }
 
+                vmStats.freeFrames++;
+
                 if ( frameTable[processes[new].pageTable[i].frame].ref != -1 && frameTable[processes[new].pageTable[i].frame].dirty != -1){
                     accessPtr = frameTable[processes[new].pageTable[i].frame].ref + frameTable[processes[new].pageTable[i].frame].dirty;
                     
