@@ -27,6 +27,7 @@ typedef struct PTE {
     int  frame;      // Frame that stores the page (if any). -1 if none.
     int  diskBlock;  // Disk block that stores the page (if any). -1 if none.
     int  pageNum;
+    int  beenRef;
     // Add more stuff here
 } PTE;
 
@@ -55,6 +56,7 @@ FTE *frameTable;
 int mmuInitialized;
 int curRefBlock;
 void *vmRegion;
+int hand;
 /*
  * Information about page faults. This message is sent by the faulting
  * process to the pager to request that the fault be handled.

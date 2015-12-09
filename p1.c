@@ -9,7 +9,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#define DEBUG 1
+#define DEBUG 0
 
 extern int debugflag;
 //extern Process processes[50];
@@ -40,6 +40,7 @@ p1_fork(int pid)
             processes[pid%MAXPROC].pageTable[i].frame = -1;
             processes[pid%MAXPROC].pageTable[i].diskBlock = -1;
             processes[pid%MAXPROC].pageTable[i].pageNum = i;
+            processes[pid%MAXPROC].pageTable[i].beenRef = 0;
         }
     }
     else{
@@ -67,7 +68,7 @@ p1_switch(int old, int new)
             if (processes[old].pageTable[i].state == INFRAME){
                 int toUnmap = processes[old].pageTable[i].pageNum;
                 if (DEBUG){
-                    USLOSS_Console("p1_switch(): about to unmap page %d\n", toUnmap);
+                    USLOSS_Console("p1_switch(): about to unmap page %d from frame %d\n", toUnmap, processes[old].pageTable[i].frame);
                 }
 
                 memcpy(toWrite, vmRegion+(USLOSS_MmuPageSize()*i), USLOSS_MmuPageSize());
@@ -77,6 +78,8 @@ p1_switch(int old, int new)
                   USLOSS_Console("p1_switch(): couldn't unmap MMU, status %d\n", error1);
                   abort();
                 }
+
+                vmStats.freeFrames++;
                 /*
                 frameTable[i].state = UNUSED;
                 frameTable[i].pid = -1;
@@ -85,25 +88,31 @@ p1_switch(int old, int new)
         }//end for
 
         //check new process page table, see if any of its pages are mapped to frames.
+        long accessPtr = 0;
         for (i = 0; i < vmStats.pages; i++){
             if (processes[new].pageTable[i].state == INFRAME){
 
                 if (DEBUG){
-                    USLOSS_Console("p1_switch(): about to map page %d\n", i);
+                    USLOSS_Console("p1_switch(): about to map page %d to frame %d\n", i, processes[new].pageTable[i].frame);
                 }
                 error1 = USLOSS_MmuMap(TAG, i, processes[new].pageTable[i].frame, USLOSS_MMU_PROT_RW);
                 if (error1 != USLOSS_MMU_OK){
                     USLOSS_Console("p1_switch(): couldn't map MMU, status %d\n", error1);
                     abort();
                 }
-                /*
-                frameTable[i].state = USED;
-                frameTable[i].pid = new;
-                frameTable[i].page = &processes[new].pageTable[i];*/
+
+                if ( frameTable[processes[new].pageTable[i].frame].ref != -1 && frameTable[processes[new].pageTable[i].frame].dirty != -1){
+                    accessPtr = frameTable[processes[new].pageTable[i].frame].ref + frameTable[processes[new].pageTable[i].frame].dirty;
+                    
+                    USLOSS_MmuSetAccess(processes[new].pageTable[i].frame, accessPtr);
+                    if (DEBUG){
+                        USLOSS_Console("p1_switch(): ref = %d and dirty = %d\n", accessPtr&USLOSS_MMU_REF, accessPtr&USLOSS_MMU_DIRTY);
+                    }
+                }
+    
+                
             }
         }
-        //map them to the frames they belong to
-        //more profit
     }
     }
     else{

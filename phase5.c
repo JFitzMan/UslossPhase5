@@ -37,7 +37,7 @@ int pagerMbox;
 int pagerPID[MAXPAGERS];
 int numPagers = 0;
 
-int debug5 = 1;
+int debug5 = 0;
 
 
 static void
@@ -72,6 +72,7 @@ start4(char *arg)
     int status;
     mmuInitialized = 0;
     curRefBlock = 0;
+    hand = 0;
 
     if(debug5){
       USLOSS_Console("start4(): Started.\n");
@@ -491,10 +492,12 @@ Pager(char *buf)
       int i;
       for (i = 0; i < vmStats.frames; i++){
           if(frameTable[i].state == UNUSED){
+            vmStats.freeFrames --;
             break;
           }
 		      else if (i == vmStats.frames-1 && frameTable[i].state == USED){		  
 			      //Call PagerClock
+            vmStats.freeFrames = 0;
 			      i = PagerClock(i);
 			      break;
 		      }
@@ -518,7 +521,7 @@ Pager(char *buf)
           USLOSS_Console("Pager(): dirty frame! Saving to disk\n");
 
         //map pagers own page onto the frame to get access
-        error = USLOSS_MmuMap(TAG, toUnmap, frameToMap, USLOSS_MMU_PROT_RW);
+        error = USLOSS_MmuMap(TAG, 0, frameToMap, USLOSS_MMU_PROT_RW);
         if (error != USLOSS_MMU_OK){
           USLOSS_Console("Pager(): couldn't map page %d frame %d in MMU, status %d\n", toUnmap, frameToMap, error);
           abort();
@@ -527,10 +530,24 @@ Pager(char *buf)
         memcpy(toWrite, vmRegion, USLOSS_MmuPageSize());
 
         //write to disk
+        int block = 0;
+        if (processes[pidToHelp].pageTable[toUnmap].diskBlock == -1){
+          processes[pidToHelp].pageTable[toUnmap].diskBlock = curRefBlock;
+          block = curRefBlock;
+          curRefBlock++;
+        }
+        else{
+          block = processes[pidToHelp].pageTable[toUnmap].diskBlock;
+        }
+        if(debug5)
+          USLOSS_Console("Pager(): page %d will be written to block %d\n", toUnmap, block);
 
         processes[pidToHelp].pageTable[toUnmap].state = ONDISK;
+        processes[pidToHelp].pageTable[toUnmap].frame = -1;
 
-        error = USLOSS_MmuUnmap(TAG, toUnmap);
+
+
+        error = USLOSS_MmuUnmap(TAG, 0);
         if (error != USLOSS_MMU_OK){
           USLOSS_Console("Pager(): couldn't unmap MMU, status %d\n", error);
           abort();
@@ -549,7 +566,10 @@ Pager(char *buf)
         USLOSS_Console("Pager(): mapped page to frame %d\n", frameToMap);
 
       //update the process page table
-      vmStats.new++;
+      if( processes[pidToHelp].pageTable[pageToMap].beenRef == 0){
+        vmStats.new++;
+        processes[pidToHelp].pageTable[pageToMap].beenRef = 1;
+      }
       processes[pidToHelp].pageTable[pageToMap].state = INFRAME;
       processes[pidToHelp].pageTable[pageToMap].frame = frameToMap;
 
@@ -590,7 +610,7 @@ static int
 PagerClock(int cur)
 {
 	int freeFrame = 0;
-  int hand = 0;
+
 	int error;
 	int accessPtr;
 	//find frame to replace
@@ -625,7 +645,7 @@ PagerClock(int cur)
       //set ref bit to 0
       accessPtr = accessPtr & USLOSS_MMU_DIRTY;
       if(debug5){
-        USLOSS_Console("  frame %d ref bit now equals %d\n", accessPtr&USLOSS_MMU_REF);
+        USLOSS_Console("  frame %d ref bit now equals %d\n", hand, accessPtr&USLOSS_MMU_REF);
       }
       USLOSS_MmuSetAccess(hand,accessPtr);
 		}//end if
@@ -636,12 +656,18 @@ PagerClock(int cur)
       notFoundFrame = 0;
 		}//end else
 
+    error = USLOSS_MmuGetAccess(hand, &accessPtr);
+    frameTable[hand].dirty = accessPtr&USLOSS_MMU_DIRTY;
+    frameTable[hand].ref = accessPtr&USLOSS_MMU_REF;
+
     if (hand == vmStats.frames-1) hand = 0;
     else hand++;
 
     if(debug5){
-        USLOSS_Console("  i = %d\n", i);
+        USLOSS_Console("  hand = %d\n", hand);
       }
+
+    
 	}//end for
 
   accessPtr = 0;
