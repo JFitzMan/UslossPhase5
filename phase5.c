@@ -37,7 +37,7 @@ int pagerMbox;
 int pagerPID[MAXPAGERS];
 int numPagers = 0;
 
-int debug5 = 0;
+int debug5 = 1;
 
 
 static void
@@ -545,6 +545,7 @@ Pager(char *buf)
           diskWriteReal(1, block, 0, 8, toWrite);
           processes[pidToHelp].pageTable[toUnmap].state = ONDISK;
           processes[pidToHelp].pageTable[toUnmap].frame = -1;
+          vmStats.pageOuts++;
 
           //unmap from frame, no longe need access
           error = USLOSS_MmuUnmap(TAG, 0);
@@ -573,12 +574,13 @@ Pager(char *buf)
       }
       //it's been accessed and needs to be loaded from the disk...
       else{
+          vmStats.pageIns++;
           char readFromDisk [USLOSS_MmuPageSize() + 1];
           int block = processes[pidToHelp].pageTable[pageToMap].diskBlock;
           diskReadReal(1, block, 0, 8, readFromDisk);
           memcpy(vmRegion+(pageToMap*USLOSS_MmuPageSize()), readFromDisk, USLOSS_MmuPageSize());
           if(debug5)
-          USLOSS_Console("Pager(): mapped page to frame %d, and read contents from disk\n", frameToMap);
+              USLOSS_Console("Pager(): mapped page to frame %d, and read contents from disk\n", frameToMap);
       }
 
       processes[pidToHelp].pageTable[pageToMap].state = INFRAME;
@@ -629,12 +631,12 @@ PagerClock(int cur)
 		USLOSS_Console("PagerClock() called.\nFrames= %d\n", vmStats.frames);
 	}
 	
-	
+	/*
 	if(cur >= vmStats.frames-1){ //Subtract 1 to account for 0 indexing
 		freeFrame = cur % (vmStats.frames-1);
 		if(debug5)
 			USLOSS_Console("PagerClock(): freeFrame = %d\n", freeFrame);
-	}
+	}*/
 	
 	int i;
   int notFoundFrame = 1;
