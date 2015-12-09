@@ -79,7 +79,7 @@ p1_switch(int old, int new)
                   abort();
                 }
 
-                vmStats.freeFrames++;
+                vmStats.freeFrames--;
                 /*
                 frameTable[i].state = UNUSED;
                 frameTable[i].pid = -1;
@@ -118,11 +118,8 @@ p1_switch(int old, int new)
     }
     }
     else{
-
+        //do nothing, mmu isn't initialized yet
     }
-
-    //MmuMap/MmuUnmap will be used to remove the pages from the frames,
-    //and add the new pages into the frame
 } /* p1_switch */
 
 void
