@@ -37,7 +37,7 @@ int pagerMbox;
 int pagerPID[MAXPAGERS];
 int numPagers = 0;
 
-int debug5 = 1;
+int debug5 = 0;
 
 
 static void

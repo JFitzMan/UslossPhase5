@@ -9,7 +9,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#define DEBUG 1
+#define DEBUG 0
 
 extern int debugflag;
 //extern Process processes[50];
@@ -111,7 +111,7 @@ p1_switch(int old, int new)
                     if (DEBUG){
                         USLOSS_Console("p1_switch(): ref = %d and dirty = %d\n", accessPtr&USLOSS_MMU_REF, accessPtr&USLOSS_MMU_DIRTY);
                     }
-    
+
                 }
     
                 
